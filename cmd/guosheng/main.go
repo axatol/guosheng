@@ -22,6 +22,8 @@ var exitCode = 0
 func main() {
 	defer os.Exit(exitCode)
 	config.Configure()
+	config.Version().Info().Send()
+
 	ctx := context.Background()
 
 	bot, err := discord.NewBot(config.DiscordBotToken, config.DiscordBotPrefix)

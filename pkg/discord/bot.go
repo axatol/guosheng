@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/axatol/guosheng/pkg/config"
 	"github.com/bwmarrin/discordgo"
@@ -45,6 +46,7 @@ func NewBot(token, prefix string) (*Bot, error) {
 
 	bot.session.AddHandler(onConnect)
 	bot.session.AddHandler(onDisconnect)
+	bot.session.AddHandler(onEvent)
 	bot.session.AddHandler(onGuildCreate(bot))
 	bot.session.AddHandler(onInteractionCreate)
 	bot.session.AddHandler(onMessageCreate(prefix))
@@ -57,19 +59,40 @@ func NewBot(token, prefix string) (*Bot, error) {
 	return &bot, nil
 }
 
+func waitForReady(ctx context.Context, session *discordgo.Session) error {
+	wait := make(chan struct{}, 1)
+	session.AddHandlerOnce(func(s *discordgo.Session, e *discordgo.Ready) {
+		wait <- struct{}{}
+	})
+
+	if err := session.Open(); err != nil {
+		return fmt.Errorf("failed to open discord session: %s", err)
+	}
+
+	deadline, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	select {
+	case <-deadline.Done():
+		return fmt.Errorf("failed to connect to discord: %s", deadline.Err())
+	case <-wait:
+		return nil
+	}
+}
+
 func (b *Bot) GetGuild(ctx context.Context, id string) (*Guild, error) {
 	if guild, ok := b.guilds[id]; ok {
 		return &guild, nil
 	}
 
-	guild, err := b.session.Guild(id, discordgo.WithContext(ctx))
+	discordGuild, err := b.session.Guild(id, discordgo.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get guild %s: %s", id, err)
 	}
 
-	g := Guild{guild}
-	b.guilds[id] = g
-	return &g, nil
+	guild := Guild{discordGuild}
+	b.guilds[id] = guild
+	return &guild, nil
 }
 
 func (b *Bot) Open(ctx context.Context) error {

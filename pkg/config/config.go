@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/axatol/go-utils/flags"
@@ -13,6 +14,9 @@ import (
 )
 
 var (
+	buildCommit string = "unknown"
+	buildTime   string = "unknown"
+
 	logLevel       = flags.LogLevelValue{Default: ptr.Ptr(zerolog.InfoLevel.String())}
 	logFormat      = flags.EnumValue{Valid: []string{"json", "text"}, Default: ptr.Ptr("json")}
 	configFilename string
@@ -22,6 +26,17 @@ var (
 
 	ServerAddress string
 )
+
+func Version() *zerolog.Logger {
+	e := log.With().
+		Str("go_os", runtime.GOOS).
+		Str("go_arch", runtime.GOARCH).
+		Str("go_version", runtime.Version()).
+		Str("build_commit", buildCommit).
+		Str("build_time", buildTime).
+		Logger()
+	return &e
+}
 
 func Configure() {
 	fs := flags.FlagSet{FlagSet: flag.CommandLine}
