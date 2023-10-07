@@ -8,21 +8,24 @@ import (
 
 	"github.com/axatol/go-utils/flags"
 	"github.com/axatol/go-utils/ptr"
+	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 var (
-	buildCommit string = "unknown"
-	buildTime   string = "unknown"
+	buildCommit  string = "unknown"
+	buildTime    string = "unknown"
+	PrintVersion bool
 
 	logLevel       = flags.LogLevelValue{Default: ptr.Ptr(zerolog.InfoLevel.String())}
 	logFormat      = flags.EnumValue{Valid: []string{"json", "text"}, Default: ptr.Ptr("json")}
 	configFilename string
 
-	DiscordBotPrefix string
-	DiscordBotToken  string
+	DiscordAppID         string
+	DiscordBotToken      string
+	DiscordMessagePrefix string
 
 	ServerAddress string
 )
@@ -34,6 +37,7 @@ func Version() *zerolog.Logger {
 		Str("go_version", runtime.Version()).
 		Str("build_commit", buildCommit).
 		Str("build_time", buildTime).
+		Str("discordgo_version", discordgo.VERSION).
 		Logger()
 	return &e
 }
@@ -42,9 +46,11 @@ func Configure() {
 	fs := flags.FlagSet{FlagSet: flag.CommandLine}
 	fs.Var(&logLevel, "log-level", "log level")
 	fs.Var(&logFormat, "log-format", "log format")
+	fs.BoolVar(&PrintVersion, "version", false, "prints the program version")
 	fs.StringVar(&configFilename, "config", "", "config file name")
-	fs.StringVar(&DiscordBotPrefix, "discord-bot-prefix", "", "discord bot prefix")
+	fs.StringVar(&DiscordAppID, "discord-app-id", "", "discord app id")
 	fs.StringVar(&DiscordBotToken, "discord-bot-token", "", "discord bot token")
+	fs.StringVar(&DiscordMessagePrefix, "discord-message-prefix", "", "discord message prefix")
 	fs.StringVar(&ServerAddress, "server-address", ":8080", "server address")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {

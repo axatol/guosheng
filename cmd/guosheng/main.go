@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/axatol/go-utils/contextutil"
+	"github.com/axatol/guosheng/pkg/cmds"
 	"github.com/axatol/guosheng/pkg/config"
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/axatol/guosheng/pkg/server"
@@ -21,28 +23,34 @@ var exitCode = 0
 
 func main() {
 	defer os.Exit(exitCode)
+
 	config.Configure()
-	config.Version().Info().Send()
+
+	if config.PrintVersion {
+		config.Version().Info().Send()
+		return
+	}
 
 	ctx := context.Background()
+	ctx = contextutil.WithInterrupt(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
-	bot, err := discord.NewBot(config.DiscordBotToken, config.DiscordBotPrefix)
+	botOpts := discord.BotOptions{
+		AppID:         config.DiscordAppID,
+		BotToken:      config.DiscordBotToken,
+		MessagePrefix: config.DiscordMessagePrefix,
+	}
+
+	bot, err := discord.NewBot(botOpts)
 	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
 
-	if err := bot.Open(ctx); err != nil {
+	bot.RegisterCommand(ctx, cmds.Beep{})
+
+	if err := bot.Open(ctx, time.Second*10); err != nil {
 		log.Fatal().Err(err).Send()
 	}
-
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	ctx, cancel := context.WithCancelCause(context.Background())
-
-	go func() {
-		<-sig
-		cancel(fmt.Errorf("received interrupt, gracefully shutting down"))
-	}()
 
 	router := server.NewRouter(config.ServerAddress)
 	router.Get("/api/ping", handlers.Ping)
@@ -52,13 +60,11 @@ func main() {
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			cancel(err)
-		} else {
-			cancel(nil)
 		}
 	}()
 
 	<-ctx.Done()
-	if err := context.Cause(ctx); err != nil {
+	if err := context.Cause(ctx); err != nil && err != context.Canceled {
 		log.Error().Err(fmt.Errorf("context canceled: %s", err)).Send()
 		exitCode = 1
 	}
@@ -95,11 +101,11 @@ func cleanup(bot *discord.Bot, server *http.Server) {
 	}()
 
 	// wait for failure to clean up
-	deadline := time.NewTimer(time.Second * 7)
+	deadline := time.NewTimer(time.Second * 10)
 	select {
 	case <-sig:
 		// forceful interrupt
-		cancel(fmt.Errorf("received interrupt, forcefully shutting down"))
+		cancel(fmt.Errorf("received interrupt"))
 	case <-deadline.C:
 		// timeout
 		cancel(fmt.Errorf("context deadline exceeded"))

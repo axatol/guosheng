@@ -4,6 +4,8 @@ github.com/axatol/go-utils v0.0.19 h1:SY+zAPJ7a/FXDXLJLodyI2hzf+ECxv9YrL6kufQxxI
 github.com/axatol/go-utils v0.0.19/go.mod h1:FO5f85R4q0j6pREIJyKaZFSl4XCp8qv4oWA06ug2oTg=
 github.com/axatol/go-utils v0.0.20 h1:j+tUyvAMujhEbnazca+pIL7cZpndstH+tgv3kTk46/E=
 github.com/axatol/go-utils v0.0.20/go.mod h1:FO5f85R4q0j6pREIJyKaZFSl4XCp8qv4oWA06ug2oTg=
+github.com/axatol/go-utils v0.0.21 h1:v1JSB6jL2hIo7aDvWNdklIzxspZHBZvgsrizJmz2Fx4=
+github.com/axatol/go-utils v0.0.21/go.mod h1:FO5f85R4q0j6pREIJyKaZFSl4XCp8qv4oWA06ug2oTg=
 github.com/bwmarrin/discordgo v0.27.1 h1:ib9AIc/dom1E/fSIulrBwnez0CToJE113ZGt4HoliGY=
 github.com/bwmarrin/discordgo v0.27.1/go.mod h1:NJZpH+1AfhIcyQsPeuBKsUtYrRnjkyu0kIVMCHkZtRY=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
