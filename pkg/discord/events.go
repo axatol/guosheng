@@ -9,6 +9,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+func (b *Bot) onEvent(session *discordgo.Session, event *discordgo.Event) {
+	log.Trace().Str("event", event.Type).
+		Any("data", event.Struct).
+		Send()
+}
+
 func (b *Bot) onGuildCreate(session *discordgo.Session, event *discordgo.GuildCreate) {
 	log.Info().
 		Str("event", "GUILD_CREATE").
@@ -17,6 +23,11 @@ func (b *Bot) onGuildCreate(session *discordgo.Session, event *discordgo.GuildCr
 		Send()
 
 	b.Guilds[event.ID] = Guild{event.Guild}
+	for _, e := range event.Guild.Emojis {
+		if e != nil {
+			b.Emojis[e.Name] = *e
+		}
+	}
 }
 
 func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.InteractionCreate) {
@@ -41,6 +52,18 @@ func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.I
 		Send()
 
 	switch data := (event.Data).(type) {
+	case discordgo.MessageComponentInteractionData:
+		log.Debug().
+			Any("interaction_data_message_component", data).
+			Msg("unsupported interaction type")
+		return
+
+	case discordgo.ModalSubmitInteractionData:
+		log.Debug().
+			Any("interaction_data_modal_submit", data).
+			Msg("unsupported interaction type")
+		return
+
 	case discordgo.ApplicationCommandInteractionData:
 		log = log.With().
 			Any("interaction_data_application_command", data).
@@ -48,35 +71,36 @@ func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.I
 			Any("command_options", data.Options).
 			Logger()
 
-		interaction, ok := b.interactions[data.Name]
+		cmd, ok := b.commands[data.Name]
 		if !ok {
+			log.Debug().
+				Err(fmt.Errorf("invalid command: %s", ErrCommandNotImplemented)).
+				Send()
 			return
 		}
 
-		interactible, ok := interaction.(ApplicationCommandInteractive)
+		appCmd, ok := cmd.(ApplicationCommandable)
 		if !ok {
-			log.Warn().Msg("matched interaction data cannot handle data type")
+			log.Error().
+				Err(fmt.Errorf("invalid command: %s", ErrInvalidApplicationCommand)).
+				Send()
+			return
 		}
 
-		if err := interactible.OnApplicationCommandInteraction(context.Background(), b, event, &data); err != nil {
-			log.Error().Err(err).Send()
+		if err := appCmd.OnApplicationCommand(context.Background(), b, event, &data); err != nil {
+			log.Error().
+				Err(fmt.Errorf("application command invocation failed: %s", err)).
+				Send()
+			return
 		}
-
-	case discordgo.MessageComponentInteractionData:
-		log.Warn().
-			Any("interaction_data_message_component", data).
-			Msg("unsupported interaction type")
-		return
-
-	case discordgo.ModalSubmitInteractionData:
-		log.Warn().
-			Any("interaction_data_modal_submit", data).
-			Msg("unsupported interaction type")
-		return
 	}
 }
 
 func (b *Bot) onMessageCreate(session *discordgo.Session, event *discordgo.MessageCreate) {
+	if event.Author.Bot {
+		return
+	}
+
 	content, ok := strings.CutPrefix(event.Content, b.MessagePrefix)
 	if !ok {
 		return
@@ -94,25 +118,31 @@ func (b *Bot) onMessageCreate(session *discordgo.Session, event *discordgo.Messa
 		Strs("command_args", args).
 		Logger()
 
-	cmd, ok := b.commands[name]
-	if !ok {
-		log = log.With().Str("msg", "command not found").Logger()
-		return
-	}
-
 	log.Info().
 		Str("event", "MESSAGE_CREATE").
 		Str("message_id", event.ID).
 		Bool("user_is_bot", event.Author.Bot).
 		Send()
 
-	if event.Author.Bot {
+	cmd, ok := b.commands[name]
+	if !ok {
+		log.Warn().
+			Err(fmt.Errorf("invalid command: %s", ErrCommandNotImplemented)).
+			Send()
 		return
 	}
 
-	if err := cmd.OnMessage(context.Background(), b, event, args); err != nil {
+	msgCmd, ok := cmd.(MessageCommandable)
+	if !ok {
+		log.Debug().
+			Err(fmt.Errorf("invalid command: %s", ErrInvalidMessageCommand)).
+			Send()
+		return
+	}
+
+	if err := msgCmd.OnMessageCommand(context.Background(), b, event, args); err != nil {
 		log.Error().
-			Err(fmt.Errorf("invocation failed: %s", err)).
+			Err(fmt.Errorf("message command invocation failed: %s", err)).
 			Send()
 	}
 }
@@ -132,6 +162,7 @@ func (b *Bot) onMessageReactionAdd(session *discordgo.Session, event *discordgo.
 func (b *Bot) onRateLimit(session *discordgo.Session, event *discordgo.RateLimit) {
 	log.Info().
 		Str("event", "RATE_LIMIT").
+		Dur("retry_after", event.RetryAfter).
 		Any("payload", event).
 		Send()
 }
@@ -146,11 +177,7 @@ func (b *Bot) onReady(session *discordgo.Session, event *discordgo.Ready) {
 		Int("version", event.Version).
 		Send()
 
-	usd := discordgo.UpdateStatusData{
-		Activities: []*discordgo.Activity{{Details: "Plying the dildont"}},
-	}
-
-	if err := session.UpdateStatusComplex(usd); err != nil {
+	if err := session.UpdateWatchStatus(0, "Scooby Doo"); err != nil {
 		log.Error().Err(fmt.Errorf("failed to update bot status: %s", err)).Send()
 	}
 }

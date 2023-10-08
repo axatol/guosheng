@@ -35,6 +35,19 @@ func main() {
 	ctx = contextutil.WithInterrupt(ctx)
 	ctx, cancel := context.WithCancelCause(ctx)
 
+	bot := runBot(ctx, cancel)
+	server := runServer(ctx, cancel)
+
+	<-ctx.Done()
+	if err := context.Cause(ctx); err != nil && err != context.Canceled {
+		log.Error().Err(fmt.Errorf("context canceled: %s", err)).Send()
+		exitCode = 1
+	}
+
+	cleanup(bot, server)
+}
+
+func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 	botOpts := discord.BotOptions{
 		AppID:         config.DiscordAppID,
 		BotToken:      config.DiscordBotToken,
@@ -47,15 +60,26 @@ func main() {
 	}
 
 	bot.RegisterCommand(ctx, cmds.Beep{})
+	bot.RegisterCommand(ctx, cmds.Shutdown{
+		Shutdown: func() { cancel(fmt.Errorf("received restart command")) },
+	})
+
+	if err := bot.RegisterInteractions(ctx); err != nil {
+		log.Fatal().Err(err).Send()
+	}
 
 	if err := bot.Open(ctx, time.Second*10); err != nil {
 		log.Fatal().Err(err).Send()
 	}
 
+	return bot
+}
+
+func runServer(ctx context.Context, cancel context.CancelCauseFunc) *http.Server {
 	router := server.NewRouter(config.ServerAddress)
 	router.Get("/api/ping", handlers.Ping)
 	router.Get("/api/health", handlers.Health)
-	router.Get("/api/shutdown", handlers.Shutdown(cancel))
+
 	server := http.Server{Addr: config.ServerAddress, Handler: router}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -63,13 +87,7 @@ func main() {
 		}
 	}()
 
-	<-ctx.Done()
-	if err := context.Cause(ctx); err != nil && err != context.Canceled {
-		log.Error().Err(fmt.Errorf("context canceled: %s", err)).Send()
-		exitCode = 1
-	}
-
-	cleanup(bot, &server)
+	return &server
 }
 
 func cleanup(bot *discord.Bot, server *http.Server) {

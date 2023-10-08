@@ -28,10 +28,10 @@ type BotOptions struct {
 
 type Bot struct {
 	BotOptions
-	Session      *discordgo.Session
-	Guilds       map[string]Guild
-	commands     map[string]Commandable
-	interactions map[string]Interactable
+	Session  *discordgo.Session
+	Guilds   map[string]Guild
+	Emojis   map[string]discordgo.Emoji
+	commands map[string]any
 }
 
 func NewBot(opts BotOptions) (*Bot, error) {
@@ -53,14 +53,15 @@ func NewBot(opts BotOptions) (*Bot, error) {
 	}
 
 	bot := Bot{
-		BotOptions:   opts,
-		Session:      session,
-		Guilds:       make(map[string]Guild),
-		commands:     make(map[string]Commandable),
-		interactions: make(map[string]Interactable),
+		BotOptions: opts,
+		Session:    session,
+		Guilds:     make(map[string]Guild),
+		Emojis:     make(map[string]discordgo.Emoji),
+		commands:   make(map[string]any),
 	}
 
 	bot.Session.Identify.Intents = discordIntents
+	bot.Session.AddHandler(bot.onEvent)
 	bot.Session.AddHandler(bot.onGuildCreate)
 	bot.Session.AddHandler(bot.onInteractionCreate)
 	bot.Session.AddHandler(bot.onMessageCreate)
@@ -102,14 +103,53 @@ func (b *Bot) Close() error {
 	return b.Session.Close()
 }
 
+func (b *Bot) RegisterInteractions(ctx context.Context) error {
+	existing, err := b.Session.ApplicationCommands(b.AppID, "", WithRequestOptions(ctx)...)
+	if err != nil {
+		return fmt.Errorf("failed to get existing interactions: %s", err)
+	}
+
+	var removable []*discordgo.ApplicationCommand
+	for _, cmd := range existing {
+		if _, ok := b.commands[cmd.Name]; !ok {
+			removable = append(removable, cmd)
+		}
+	}
+
+	for _, cmd := range removable {
+		if err := b.Session.ApplicationCommandDelete(b.AppID, "", cmd.ID, WithRequestOptions(ctx)...); err != nil {
+			return fmt.Errorf("failed to remove deprecated command %s(%s): %s", cmd.Name, cmd.ID, err)
+		}
+	}
+
+	var updateable []*discordgo.ApplicationCommand
+	for _, cmd := range b.commands {
+		if command, ok := cmd.(ApplicationCommandable); ok {
+			updateable = append(updateable, command.ApplicationCommand())
+		}
+	}
+
+	if _, err := b.Session.ApplicationCommandBulkOverwrite(b.AppID, "", updateable, WithRequestOptions(ctx)...); err != nil {
+		return fmt.Errorf("failed to bulk update commands: %s", err)
+	}
+
+	return nil
+}
+
 func (b *Bot) GetGuild(ctx context.Context, id string) (*Guild, error) {
 	if guild, ok := b.Guilds[id]; ok {
 		return &guild, nil
 	}
 
-	discordGuild, err := b.Session.Guild(id, discordgo.WithContext(ctx))
+	discordGuild, err := b.Session.Guild(id, WithRequestOptions(ctx)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get guild %s: %s", id, err)
+	}
+
+	for _, e := range discordGuild.Emojis {
+		if e != nil {
+			b.Emojis[e.Name] = *e
+		}
 	}
 
 	guild := Guild{discordGuild}
