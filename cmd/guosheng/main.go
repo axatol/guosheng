@@ -63,6 +63,7 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 	bot.RegisterCommand(ctx, cmds.Shutdown{
 		Shutdown: func() { cancel(fmt.Errorf("received restart command")) },
 	})
+	bot.RegisterCommand(ctx, cmds.Help{Commands: bot.Commands})
 
 	if err := bot.RegisterInteractions(ctx); err != nil {
 		log.Fatal().Err(err).Send()

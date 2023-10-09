@@ -23,15 +23,16 @@ func (cmd Shutdown) Description() string {
 	return "shutdown the bot"
 }
 
-func (cmd Shutdown) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) (err error) {
+func (cmd Shutdown) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) error {
+	defer cmd.Shutdown()
+
 	if emoji, ok := bot.Emojis["FeelsCarlosMan"]; ok {
-		if err = bot.Session.MessageReactionAdd(event.ChannelID, event.ID, emoji.ID, discord.WithRequestOptions(ctx)...); err != nil {
-			err = fmt.Errorf("failed to react to message: %s", err)
+		if err := bot.Session.MessageReactionAdd(event.ChannelID, event.ID, emoji.ID, discord.WithRequestOptions(ctx)...); err != nil {
+			return fmt.Errorf("failed to react to message: %s", err)
 		}
 	}
 
-	cmd.Shutdown()
-	return err
+	return nil
 }
 
 func (cmd Shutdown) ApplicationCommand() *discordgo.ApplicationCommand {
@@ -41,7 +42,9 @@ func (cmd Shutdown) ApplicationCommand() *discordgo.ApplicationCommand {
 	}
 }
 
-func (cmd Shutdown) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) (err error) {
+func (cmd Shutdown) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) error {
+	defer cmd.Shutdown()
+
 	response := discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: "😶‍🌫️"},
@@ -51,10 +54,9 @@ func (cmd Shutdown) OnApplicationCommand(ctx context.Context, bot *discord.Bot, 
 		response.Data = &discordgo.InteractionResponseData{Content: emoji.MessageFormat()}
 	}
 
-	if err = bot.Session.InteractionRespond(event.Interaction, &response, discord.WithRequestOptions(ctx)...); err != nil {
-		err = fmt.Errorf("failed to respond to interaction: %s", err)
+	if err := bot.Session.InteractionRespond(event.Interaction, &response, discord.WithRequestOptions(ctx)...); err != nil {
+		return fmt.Errorf("failed to respond to interaction: %s", err)
 	}
 
-	cmd.Shutdown()
-	return err
+	return nil
 }

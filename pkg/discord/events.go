@@ -71,7 +71,7 @@ func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.I
 			Any("command_options", data.Options).
 			Logger()
 
-		cmd, ok := b.commands[data.Name]
+		cmd, ok := b.Commands[data.Name]
 		if !ok {
 			log.Debug().
 				Err(fmt.Errorf("invalid command: %s", ErrCommandNotImplemented)).
@@ -124,7 +124,7 @@ func (b *Bot) onMessageCreate(session *discordgo.Session, event *discordgo.Messa
 		Bool("user_is_bot", event.Author.Bot).
 		Send()
 
-	cmd, ok := b.commands[name]
+	cmd, ok := b.Commands[name]
 	if !ok {
 		log.Warn().
 			Err(fmt.Errorf("invalid command: %s", ErrCommandNotImplemented)).

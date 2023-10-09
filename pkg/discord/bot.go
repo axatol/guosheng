@@ -31,7 +31,7 @@ type Bot struct {
 	Session  *discordgo.Session
 	Guilds   map[string]Guild
 	Emojis   map[string]discordgo.Emoji
-	commands map[string]any
+	Commands map[string]any
 }
 
 func NewBot(opts BotOptions) (*Bot, error) {
@@ -57,7 +57,7 @@ func NewBot(opts BotOptions) (*Bot, error) {
 		Session:    session,
 		Guilds:     make(map[string]Guild),
 		Emojis:     make(map[string]discordgo.Emoji),
-		commands:   make(map[string]any),
+		Commands:   make(map[string]any),
 	}
 
 	bot.Session.Identify.Intents = discordIntents
@@ -111,7 +111,7 @@ func (b *Bot) RegisterInteractions(ctx context.Context) error {
 
 	var removable []*discordgo.ApplicationCommand
 	for _, cmd := range existing {
-		if _, ok := b.commands[cmd.Name]; !ok {
+		if _, ok := b.Commands[cmd.Name]; !ok {
 			removable = append(removable, cmd)
 		}
 	}
@@ -123,7 +123,7 @@ func (b *Bot) RegisterInteractions(ctx context.Context) error {
 	}
 
 	var updateable []*discordgo.ApplicationCommand
-	for _, cmd := range b.commands {
+	for _, cmd := range b.Commands {
 		if command, ok := cmd.(ApplicationCommandable); ok {
 			updateable = append(updateable, command.ApplicationCommand())
 		}

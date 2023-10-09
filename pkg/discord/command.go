@@ -28,10 +28,10 @@ type ApplicationCommandable interface {
 func (b *Bot) RegisterCommand(ctx context.Context, cmd any) error {
 	switch command := cmd.(type) {
 	case MessageCommandable:
-		b.commands[command.Name()] = command
+		b.Commands[command.Name()] = command
 
 	case ApplicationCommandable:
-		b.commands[command.ApplicationCommand().Name] = command
+		b.Commands[command.ApplicationCommand().Name] = command
 
 	default:
 		return ErrInvalidCommand
