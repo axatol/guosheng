@@ -20,8 +20,7 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - run: make vet
-
-      - run: make deps
-
-      - run: make build
+      - run: |
+          make deps
+          make vet
+          make build

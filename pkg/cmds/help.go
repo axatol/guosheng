@@ -57,7 +57,7 @@ func (cmd Help) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 		}
 	}
 
-	if err := bot.SendInteractionMessageReply(ctx, event.Interaction, strings.Join("\n")); err != nil {
+	if err := bot.SendInteractionMessageReply(ctx, event.Interaction, strings.Join(lines, "\n")); err != nil {
 		log.Warn().Err(err).Send()
 	}
 }
