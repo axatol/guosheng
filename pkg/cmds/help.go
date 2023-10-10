@@ -7,6 +7,7 @@ import (
 
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -24,7 +25,7 @@ func (cmd Help) Description() string {
 	return "display all available commands"
 }
 
-func (cmd Help) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) error {
+func (cmd Help) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) {
 	var lines []string
 	for _, c := range cmd.Commands {
 		if msgCmd, ok := c.(discord.MessageCommandable); ok {
@@ -34,11 +35,9 @@ func (cmd Help) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *d
 		}
 	}
 
-	if _, err := bot.Session.ChannelMessageSendReply(event.ChannelID, strings.Join(lines, "\n"), event.Message.Reference(), discord.WithRequestOptions(ctx)...); err != nil {
-		return fmt.Errorf("failed to reply to message: %s", err)
+	if err := bot.SendMessageReply(ctx, event.Message, strings.Join(lines, "\n")); err != nil {
+		log.Warn().Err(err).Send()
 	}
-
-	return nil
 }
 
 func (cmd Help) ApplicationCommand() *discordgo.ApplicationCommand {
@@ -48,7 +47,7 @@ func (cmd Help) ApplicationCommand() *discordgo.ApplicationCommand {
 	}
 }
 
-func (cmd Help) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) error {
+func (cmd Help) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) {
 	var lines []string
 	for _, c := range cmd.Commands {
 		if msgCmd, ok := c.(discord.MessageCommandable); ok {
@@ -58,14 +57,7 @@ func (cmd Help) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 		}
 	}
 
-	response := discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Content: strings.Join(lines, "\n")},
+	if err := bot.SendInteractionMessageReply(ctx, event.Interaction, strings.Join("\n")); err != nil {
+		log.Warn().Err(err).Send()
 	}
-
-	if err := bot.Session.InteractionRespond(event.Interaction, &response, discord.WithRequestOptions(ctx)...); err != nil {
-		return fmt.Errorf("failed to respond to interaction: %s", err)
-	}
-
-	return nil
 }
