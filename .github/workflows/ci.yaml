@@ -1,0 +1,27 @@
+on:
+  pull_request:
+
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on:
+      - self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - run: make vet
+
+      - run: make deps
+
+      - run: make build
