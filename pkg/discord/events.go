@@ -15,27 +15,16 @@ func (b *Bot) onEvent(session *discordgo.Session, event *discordgo.Event) {
 		Send()
 }
 
-func (b *Bot) onGuildCreate(session *discordgo.Session, event *discordgo.GuildCreate) {
-	log.Info().
-		Str("event", "GUILD_CREATE").
-		Str("guild_id", event.ID).
-		Str("guild_name", event.Name).
-		Send()
-
-	b.Guilds[event.ID] = Guild{event.Guild}
-	for _, e := range event.Guild.Emojis {
-		if e != nil {
-			b.Emojis[e.Name] = *e
-		}
-	}
-}
-
 func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.InteractionCreate) {
 	var user *discordgo.User
 	if event.Member != nil && event.Member.User != nil {
 		user = event.Member.User
 	} else if event.User != nil {
 		user = event.User
+	}
+
+	if user.Bot {
+		return
 	}
 
 	log := log.With().
@@ -87,12 +76,7 @@ func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.I
 			return
 		}
 
-		if err := appCmd.OnApplicationCommand(context.Background(), b, event, &data); err != nil {
-			log.Error().
-				Err(fmt.Errorf("application command invocation failed: %s", err)).
-				Send()
-			return
-		}
+		go appCmd.OnApplicationCommand(context.Background(), b, event, &data)
 	}
 }
 
@@ -140,14 +124,14 @@ func (b *Bot) onMessageCreate(session *discordgo.Session, event *discordgo.Messa
 		return
 	}
 
-	if err := msgCmd.OnMessageCommand(context.Background(), b, event, args); err != nil {
-		log.Error().
-			Err(fmt.Errorf("message command invocation failed: %s", err)).
-			Send()
-	}
+	go msgCmd.OnMessageCommand(context.Background(), b, event, args)
 }
 
 func (b *Bot) onMessageReactionAdd(session *discordgo.Session, event *discordgo.MessageReactionAdd) {
+	if event.Member.User.Bot {
+		return
+	}
+
 	log.Info().
 		Str("event", "MESSAGE_REACTION_ADD").
 		Str("user_username", event.Member.User.Username).

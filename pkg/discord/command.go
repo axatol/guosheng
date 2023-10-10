@@ -17,12 +17,12 @@ var (
 type MessageCommandable interface {
 	Name() string
 	Description() string
-	OnMessageCommand(context.Context, *Bot, *discordgo.MessageCreate, []string) error
+	OnMessageCommand(context.Context, *Bot, *discordgo.MessageCreate, []string)
 }
 
 type ApplicationCommandable interface {
 	ApplicationCommand() *discordgo.ApplicationCommand
-	OnApplicationCommand(context.Context, *Bot, *discordgo.InteractionCreate, *discordgo.ApplicationCommandInteractionData) error
+	OnApplicationCommand(context.Context, *Bot, *discordgo.InteractionCreate, *discordgo.ApplicationCommandInteractionData)
 }
 
 func (b *Bot) RegisterCommand(ctx context.Context, cmd any) error {

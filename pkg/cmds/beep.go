@@ -6,6 +6,7 @@ import (
 
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -23,16 +24,14 @@ func (cmd Beep) Description() string {
 	return "boop"
 }
 
-func (cmd Beep) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) error {
-	if err := bot.Session.MessageReactionAdd(event.ChannelID, event.Message.ID, "🤖"); err != nil {
-		return fmt.Errorf("failed to react to message: %s", err)
+func (cmd Beep) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) {
+	if err := bot.SendMessageReaction(ctx, event.Message, "🤖", "🤖"); err != nil {
+		log.Warn().Err(err).Send()
 	}
 
-	if _, err := bot.Session.ChannelMessageSendReply(event.ChannelID, "boop", event.Message.Reference(), discord.WithRequestOptions(ctx)...); err != nil {
-		return fmt.Errorf("failed to reply to message: %s", err)
+	if err := bot.SendMessageReply(ctx, event.Message, "boop"); err != nil {
+		log.Warn().Err(err).Send()
 	}
-
-	return nil
 }
 
 func (cmd Beep) ApplicationCommand() *discordgo.ApplicationCommand {
@@ -42,15 +41,13 @@ func (cmd Beep) ApplicationCommand() *discordgo.ApplicationCommand {
 	}
 }
 
-func (cmd Beep) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) error {
+func (cmd Beep) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) {
 	response := discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: "boop"},
 	}
 
 	if err := bot.Session.InteractionRespond(event.Interaction, &response, discord.WithRequestOptions(ctx)...); err != nil {
-		return fmt.Errorf("failed to respond to interaction: %s", err)
+		log.Warn().Err(fmt.Errorf("failed to respond to interaction: %s", err)).Send()
 	}
-
-	return nil
 }

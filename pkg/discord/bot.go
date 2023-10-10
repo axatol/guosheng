@@ -29,8 +29,6 @@ type BotOptions struct {
 type Bot struct {
 	BotOptions
 	Session  *discordgo.Session
-	Guilds   map[string]Guild
-	Emojis   map[string]discordgo.Emoji
 	Commands map[string]any
 }
 
@@ -55,14 +53,11 @@ func NewBot(opts BotOptions) (*Bot, error) {
 	bot := Bot{
 		BotOptions: opts,
 		Session:    session,
-		Guilds:     make(map[string]Guild),
-		Emojis:     make(map[string]discordgo.Emoji),
 		Commands:   make(map[string]any),
 	}
 
 	bot.Session.Identify.Intents = discordIntents
 	bot.Session.AddHandler(bot.onEvent)
-	bot.Session.AddHandler(bot.onGuildCreate)
 	bot.Session.AddHandler(bot.onInteractionCreate)
 	bot.Session.AddHandler(bot.onMessageCreate)
 	bot.Session.AddHandler(bot.onMessageReactionAdd)
@@ -99,6 +94,11 @@ func (b *Bot) Open(ctx context.Context, deadline time.Duration) error {
 
 func (b *Bot) Close() error {
 	// TODO close voice connections?
+	for _, vc := range b.Session.VoiceConnections {
+		if err := vc.Disconnect(); err != nil {
+			log.Error().Err(fmt.Errorf("failed to disconnect voice channel %s: %s", vc.ChannelID, err)).Send()
+		}
+	}
 
 	return b.Session.Close()
 }
@@ -136,23 +136,132 @@ func (b *Bot) RegisterInteractions(ctx context.Context) error {
 	return nil
 }
 
-func (b *Bot) GetGuild(ctx context.Context, id string) (*Guild, error) {
-	if guild, ok := b.Guilds[id]; ok {
-		return &guild, nil
+func (b *Bot) GetGuild(ctx context.Context, id string) (*discordgo.Guild, error) {
+	if guild, err := b.Session.State.Guild(id); err == nil {
+		return guild, nil
 	}
 
-	discordGuild, err := b.Session.Guild(id, WithRequestOptions(ctx)...)
+	guild, err := b.Session.Guild(id, WithRequestOptions(ctx)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get guild %s: %s", id, err)
 	}
 
-	for _, e := range discordGuild.Emojis {
-		if e != nil {
-			b.Emojis[e.Name] = *e
+	if err := b.Session.State.GuildAdd(guild); err != nil {
+		return nil, fmt.Errorf("failed to save guild %s to state: %s", id, err)
+	}
+
+	return guild, nil
+}
+
+func (b *Bot) GetEmoji(name string) *discordgo.Emoji {
+	for _, guild := range b.Session.State.Guilds {
+		for _, emoji := range guild.Emojis {
+			if emoji.ID == name || emoji.Name == name {
+				return emoji
+			}
 		}
 	}
 
-	guild := Guild{discordGuild}
-	b.Guilds[id] = guild
-	return &guild, nil
+	return nil
+}
+
+func (b *Bot) GetEmojiForMessage(name, fallback string) string {
+	if emoji := b.GetEmoji(name); emoji != nil {
+		return emoji.MessageFormat()
+	}
+
+	return fallback
+}
+
+func (b *Bot) GetEmojiForReaction(name, fallback string) string {
+	if emoji := b.GetEmoji(name); emoji != nil {
+		return emoji.APIName()
+	}
+
+	return fallback
+}
+
+func (b *Bot) GetUserVoiceChannel(userID string) (guildID, channelID string) {
+	for _, guild := range b.Session.State.Guilds {
+		for _, state := range guild.VoiceStates {
+			if state.UserID == userID {
+				return guild.ID, state.ChannelID
+			}
+		}
+	}
+
+	return "", ""
+}
+
+func (b *Bot) JoinUserVoiceChannel(userID string) (*discordgo.VoiceConnection, error) {
+	guildID, channelID := b.GetUserVoiceChannel(userID)
+
+	if guildID == "" || channelID == "" {
+		return nil, fmt.Errorf("no eligible voice channel found")
+	}
+
+	vc, err := b.Session.ChannelVoiceJoin(guildID, channelID, false, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to join voice channel %s: %s", vc.ChannelID, err)
+	}
+
+	return vc, nil
+}
+
+func (b *Bot) LeaveUserVoiceChannel(userID string) error {
+	guildID, channelID := b.GetUserVoiceChannel(userID)
+	if guildID == "" || channelID == "" {
+		return nil
+	}
+
+	for _, vc := range b.Session.VoiceConnections {
+		if vc.GuildID != guildID || vc.ChannelID != channelID {
+			continue
+		}
+
+		if err := vc.Disconnect(); err != nil {
+			return fmt.Errorf("failed to leave voice channel %s: %s", vc.ChannelID, err)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("failed to find voice channel for user %s", userID)
+}
+
+func (b *Bot) SendMessageReaction(ctx context.Context, message *discordgo.Message, emoji, emojiFallback string) error {
+	if err := b.Session.MessageReactionAdd(message.ChannelID, message.ID, b.GetEmojiForReaction(emoji, emojiFallback), WithRequestOptions(ctx)...); err != nil {
+		return fmt.Errorf("failed to react to message %s: %s", message.ID, err)
+	}
+
+	return nil
+}
+
+func (b *Bot) SendMessageReply(ctx context.Context, message *discordgo.Message, content string) error {
+	if _, err := b.Session.ChannelMessageSendReply(message.ChannelID, content, message.Reference(), WithRequestOptions(ctx)...); err != nil {
+		return fmt.Errorf("failed to respond to message %s: %s", message.ID, err)
+	}
+
+	return nil
+}
+
+func (b *Bot) SendInteractionReply(ctx context.Context, interaction *discordgo.Interaction, response *discordgo.InteractionResponse) error {
+	if err := b.Session.InteractionRespond(interaction, response, WithRequestOptions(ctx)...); err != nil {
+		return fmt.Errorf("failed to respond to interaction %s: %s", interaction.ID, err)
+	}
+
+	return nil
+}
+
+func (b *Bot) SendInteractionMessageReply(ctx context.Context, interaction *discordgo.Interaction, content string) error {
+	response := discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: content},
+	}
+
+	if err := b.Session.InteractionRespond(interaction, &response, WithRequestOptions(ctx)...); err != nil {
+		return fmt.Errorf("failed to respond to interaction %s: %s", interaction.ID, err)
+	}
+
+	return nil
 }

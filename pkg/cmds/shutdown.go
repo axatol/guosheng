@@ -6,10 +6,11 @@ import (
 
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog/log"
 )
 
 var (
-	_ discord.MessageCommandable     = (*Shutdown)(nil)
+	// _ discord.MessageCommandable     = (*Shutdown)(nil)
 	_ discord.ApplicationCommandable = (*Shutdown)(nil)
 )
 
@@ -23,18 +24,6 @@ func (cmd Shutdown) Description() string {
 	return "shutdown the bot"
 }
 
-func (cmd Shutdown) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) error {
-	defer cmd.Shutdown()
-
-	if emoji, ok := bot.Emojis["FeelsCarlosMan"]; ok {
-		if err := bot.Session.MessageReactionAdd(event.ChannelID, event.ID, emoji.ID, discord.WithRequestOptions(ctx)...); err != nil {
-			return fmt.Errorf("failed to react to message: %s", err)
-		}
-	}
-
-	return nil
-}
-
 func (cmd Shutdown) ApplicationCommand() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        cmd.Name(),
@@ -42,21 +31,16 @@ func (cmd Shutdown) ApplicationCommand() *discordgo.ApplicationCommand {
 	}
 }
 
-func (cmd Shutdown) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) error {
+func (cmd Shutdown) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) {
 	defer cmd.Shutdown()
 
+	emoji := bot.GetEmojiForMessage("FeelsCarlosMan", "😶‍🌫️")
 	response := discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Content: "😶‍🌫️"},
-	}
-
-	if emoji, ok := bot.Emojis["FeelsCarlosMan"]; ok {
-		response.Data = &discordgo.InteractionResponseData{Content: emoji.MessageFormat()}
+		Data: &discordgo.InteractionResponseData{Content: emoji},
 	}
 
 	if err := bot.Session.InteractionRespond(event.Interaction, &response, discord.WithRequestOptions(ctx)...); err != nil {
-		return fmt.Errorf("failed to respond to interaction: %s", err)
+		log.Warn().Err(fmt.Errorf("failed to respond to interaction: %s", err)).Send()
 	}
-
-	return nil
 }
