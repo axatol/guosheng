@@ -28,6 +28,8 @@ var (
 	DiscordMessagePrefix string
 
 	ServerAddress string
+
+	YouTubeAPIKey string
 )
 
 func Version() *zerolog.Logger {
@@ -52,6 +54,7 @@ func Configure() {
 	fs.StringVar(&DiscordBotToken, "discord-bot-token", "", "discord bot token")
 	fs.StringVar(&DiscordMessagePrefix, "discord-message-prefix", "", "discord message prefix")
 	fs.StringVar(&ServerAddress, "server-address", ":8080", "server address")
+	fs.StringVar(&YouTubeAPIKey, "youtube-api-key", ":8080", "youtube api key")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		panic(err)

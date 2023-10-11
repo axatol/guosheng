@@ -16,6 +16,7 @@ import (
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/axatol/guosheng/pkg/server"
 	"github.com/axatol/guosheng/pkg/server/handlers"
+	"github.com/axatol/guosheng/yt"
 	"github.com/rs/zerolog/log"
 )
 
@@ -48,6 +49,11 @@ func main() {
 }
 
 func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
+	yt, err := yt.New(ctx, config.YouTubeAPIKey)
+	if err != nil {
+		log.Fatal().Err(err).Send()
+	}
+
 	botOpts := discord.BotOptions{
 		AppID:         config.DiscordAppID,
 		BotToken:      config.DiscordBotToken,
@@ -65,6 +71,7 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 	})
 	bot.RegisterCommand(ctx, cmds.Join{})
 	bot.RegisterCommand(ctx, cmds.Leave{})
+	bot.RegisterCommand(ctx, cmds.Play{YouTube: yt})
 	bot.RegisterCommand(ctx, cmds.Help{Commands: bot.Commands})
 
 	if err := bot.RegisterInteractions(ctx); err != nil {

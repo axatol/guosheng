@@ -117,6 +117,7 @@ func (b *Bot) RegisterInteractions(ctx context.Context) error {
 	}
 
 	for _, cmd := range removable {
+		log.Debug().Str("command", cmd.Name).Msg("deleting command")
 		if err := b.Session.ApplicationCommandDelete(b.AppID, "", cmd.ID, WithRequestOptions(ctx)...); err != nil {
 			return fmt.Errorf("failed to remove deprecated command %s(%s): %s", cmd.Name, cmd.ID, err)
 		}
@@ -125,6 +126,8 @@ func (b *Bot) RegisterInteractions(ctx context.Context) error {
 	var updateable []*discordgo.ApplicationCommand
 	for _, cmd := range b.Commands {
 		if command, ok := cmd.(ApplicationCommandable); ok {
+			spec := command.ApplicationCommand()
+			log.Debug().Str("command", spec.Name).Msg("updating command")
 			updateable = append(updateable, command.ApplicationCommand())
 		}
 	}
