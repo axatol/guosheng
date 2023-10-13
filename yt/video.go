@@ -19,13 +19,13 @@ func (v *Video) ChannelURL() string {
 	return fmt.Sprintf("https://youtube.com/channel/%s", v.Snippet.ChannelId)
 }
 
-func (v *Video) Duration() string {
+func (v *Video) Duration() *util.ISODuration {
 	duration, err := util.ParseISODuration(v.ContentDetails.Duration)
 	if err != nil {
-		return v.ContentDetails.Duration
+		return nil
 	}
 
-	return duration.String()
+	return duration
 }
 
 func (c *Client) GetVideo(ctx context.Context, id string) (*Video, error) {

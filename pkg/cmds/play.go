@@ -68,19 +68,21 @@ func (cmd Play) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 	}
 
 	uploader := fmt.Sprintf("[%s](%s)", item.Snippet.ChannelTitle, item.ChannelURL())
-	duration := item.Duration()
+	duration := item.Duration().String()
+	if duration == "" {
+		duration = "?"
+	}
 
 	edit := discordgo.WebhookEdit{
 		Content: new(string),
-		Embeds: &[]*discordgo.MessageEmbed{{
-			Type:  discordgo.EmbedTypeRich,
-			Title: item.Snippet.Title,
-			URL:   item.VideoURL(),
-			Fields: []*discordgo.MessageEmbedField{
-				{Name: "Uploader", Value: uploader, Inline: true},
-				{Name: "Duration", Value: duration, Inline: true},
-			},
-		}},
+		Embeds: &[]*discordgo.MessageEmbed{
+			discord.NewMessageEmbed().
+				SetTitle(item.Snippet.Title).
+				SetURL(item.VideoURL()).
+				AddField("Uploader", uploader).
+				AddField("Duration", duration).
+				Embed(),
+		},
 	}
 
 	if _, err := bot.Session.InteractionResponseEdit(event.Interaction, &edit, discord.WithRequestOptions(ctx)...); err != nil {
