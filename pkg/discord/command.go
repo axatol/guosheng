@@ -8,34 +8,44 @@ import (
 )
 
 var (
-	ErrCommandNotImplemented     = errors.New("command not implemented")
-	ErrInvalidCommand            = errors.New("input did not satisfy a command interface")
-	ErrInvalidApplicationCommand = errors.New("command does not implement the application command interface")
-	ErrInvalidMessageCommand     = errors.New("command does not implement the message command interface")
+	ErrCommandNotImplemented                   = errors.New("command not implemented")
+	ErrInvalidCommand                          = errors.New("input did not satisfy a command interface")
+	ErrNotApplicationCommandInteractionHandler = errors.New("command does not implement the application command interaction handler interface")
+	ErrNotMessageComponentInteractionHandler   = errors.New("command does not implement the message component interaction handler interface")
+	ErrNotMessageHandler                       = errors.New("command does not implement the message handler interface")
 )
 
-type MessageCommandable interface {
+type CommandMetadata interface {
 	Name() string
 	Description() string
-	OnMessageCommand(context.Context, *Bot, *discordgo.MessageCreate, []string)
 }
 
-type ApplicationCommandable interface {
+type MessageHandler interface {
+	CommandMetadata
+	OnMessage(context.Context, *Bot, *discordgo.MessageCreate, []string)
+}
+
+type ApplicationCommandMetadata interface {
 	ApplicationCommand() *discordgo.ApplicationCommand
+}
+
+type ApplicationCommandInteractionHandler interface {
+	CommandMetadata
+	ApplicationCommandMetadata
 	OnApplicationCommand(context.Context, *Bot, *discordgo.InteractionCreate, *discordgo.ApplicationCommandInteractionData)
 }
 
+type MessageComponentInteractionHandler interface {
+	CommandMetadata
+	ApplicationCommandMetadata
+	OnMessageComponent(context.Context, *Bot, *discordgo.InteractionCreate, *discordgo.MessageComponentInteractionData)
+}
+
 func (b *Bot) RegisterCommand(ctx context.Context, cmd any) error {
-	switch command := cmd.(type) {
-	case MessageCommandable:
+	if command, ok := cmd.(CommandMetadata); ok {
 		b.Commands[command.Name()] = command
-
-	case ApplicationCommandable:
-		b.Commands[command.ApplicationCommand().Name] = command
-
-	default:
-		return ErrInvalidCommand
+		return nil
 	}
 
-	return nil
+	return ErrInvalidCommand
 }

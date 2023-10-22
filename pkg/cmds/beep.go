@@ -2,7 +2,6 @@ package cmds
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/bwmarrin/discordgo"
@@ -10,8 +9,8 @@ import (
 )
 
 var (
-	_ discord.MessageCommandable     = (*Beep)(nil)
-	_ discord.ApplicationCommandable = (*Beep)(nil)
+	_ discord.MessageHandler                       = (*Beep)(nil)
+	_ discord.ApplicationCommandInteractionHandler = (*Beep)(nil)
 )
 
 type Beep struct{}
@@ -24,7 +23,7 @@ func (cmd Beep) Description() string {
 	return "boop"
 }
 
-func (cmd Beep) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) {
+func (cmd Beep) OnMessage(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) {
 	if err := bot.SendMessageReaction(ctx, event.Message, "🤖", "🤖"); err != nil {
 		log.Warn().Err(err).Send()
 	}
@@ -42,12 +41,7 @@ func (cmd Beep) ApplicationCommand() *discordgo.ApplicationCommand {
 }
 
 func (cmd Beep) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) {
-	response := discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Content: "boop"},
-	}
-
-	if err := bot.Session.InteractionRespond(event.Interaction, &response, discord.WithRequestOptions(ctx)...); err != nil {
-		log.Warn().Err(fmt.Errorf("failed to respond to interaction: %s", err)).Send()
+	if err := bot.SendInteractionMessageReply(ctx, event.Interaction, "boop"); err != nil {
+		log.Warn().Err(err).Send()
 	}
 }

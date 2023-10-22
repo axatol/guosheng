@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	_ discord.MessageCommandable     = (*Help)(nil)
-	_ discord.ApplicationCommandable = (*Help)(nil)
+	_ discord.ApplicationCommandInteractionHandler = (*Help)(nil)
 )
 
 type Help struct{ Commands map[string]any }
@@ -25,10 +24,10 @@ func (cmd Help) Description() string {
 	return "display all available commands"
 }
 
-func (cmd Help) OnMessageCommand(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) {
+func (cmd Help) OnMessage(ctx context.Context, bot *discord.Bot, event *discordgo.MessageCreate, args []string) {
 	var lines []string
 	for _, c := range cmd.Commands {
-		if msgCmd, ok := c.(discord.MessageCommandable); ok {
+		if msgCmd, ok := c.(discord.CommandMetadata); ok {
 			line := fmt.Sprintf("`%s%s` - %s", bot.MessagePrefix, msgCmd.Name(), msgCmd.Description())
 			lines = append(lines, line)
 			continue
@@ -50,7 +49,7 @@ func (cmd Help) ApplicationCommand() *discordgo.ApplicationCommand {
 func (cmd Help) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) {
 	var lines []string
 	for _, c := range cmd.Commands {
-		if msgCmd, ok := c.(discord.MessageCommandable); ok {
+		if msgCmd, ok := c.(discord.CommandMetadata); ok {
 			line := fmt.Sprintf("`/%s` - %s", msgCmd.Name(), msgCmd.Description())
 			lines = append(lines, line)
 			continue

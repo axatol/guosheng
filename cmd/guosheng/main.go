@@ -65,13 +65,17 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 		log.Fatal().Err(err).Send()
 	}
 
+	shutdown := func() {
+		cancel(fmt.Errorf("received shutdown command"))
+	}
+
+	bot.RegisterCommand(ctx, cmds.Shutdown{Shutdown: shutdown})
 	bot.RegisterCommand(ctx, cmds.Beep{})
-	bot.RegisterCommand(ctx, cmds.Shutdown{
-		Shutdown: func() { cancel(fmt.Errorf("received restart command")) },
-	})
 	bot.RegisterCommand(ctx, cmds.Join{})
 	bot.RegisterCommand(ctx, cmds.Leave{})
 	bot.RegisterCommand(ctx, cmds.Play{YouTube: yt})
+	bot.RegisterCommand(ctx, cmds.Search{YouTube: yt})
+	// should be last
 	bot.RegisterCommand(ctx, cmds.Help{Commands: bot.Commands})
 
 	if err := bot.RegisterInteractions(ctx); err != nil {

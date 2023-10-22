@@ -15,13 +15,17 @@ type ISODuration struct {
 	Second int
 }
 
-func (d ISODuration) Duration() time.Duration {
+func (d *ISODuration) Duration() time.Duration {
 	return (time.Duration(d.Second) * time.Second) +
 		(time.Duration(d.Minute) * time.Minute) +
 		(time.Duration(d.Hour) * time.Hour)
 }
 
-func (d ISODuration) String() string {
+func (d *ISODuration) String() string {
+	if d == nil {
+		return ""
+	}
+
 	result := fmt.Sprintf("%02d:%02d", d.Minute, d.Second)
 	if d.Hour > 0 {
 		result = fmt.Sprintf("%02d:%s", d.Hour, result)
