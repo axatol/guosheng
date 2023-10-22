@@ -9,8 +9,7 @@ import (
 )
 
 var (
-	// _ discord.MessageCommandable = (*Leave)(nil)
-	_ discord.ApplicationCommandable = (*Leave)(nil)
+	_ discord.ApplicationCommandInteractionHandler = (*Leave)(nil)
 )
 
 type Leave struct{}

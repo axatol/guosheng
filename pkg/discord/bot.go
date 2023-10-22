@@ -104,7 +104,7 @@ func (b *Bot) Close() error {
 }
 
 func (b *Bot) RegisterInteractions(ctx context.Context) error {
-	existing, err := b.Session.ApplicationCommands(b.AppID, "", WithRequestOptions(ctx)...)
+	existing, err := b.Session.ApplicationCommands(b.AppID, "", RequestOptions(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to get existing interactions: %s", err)
 	}
@@ -118,21 +118,21 @@ func (b *Bot) RegisterInteractions(ctx context.Context) error {
 
 	for _, cmd := range removable {
 		log.Debug().Str("command", cmd.Name).Msg("deleting command")
-		if err := b.Session.ApplicationCommandDelete(b.AppID, "", cmd.ID, WithRequestOptions(ctx)...); err != nil {
+		if err := b.Session.ApplicationCommandDelete(b.AppID, "", cmd.ID, RequestOptions(ctx)); err != nil {
 			return fmt.Errorf("failed to remove deprecated command %s(%s): %s", cmd.Name, cmd.ID, err)
 		}
 	}
 
 	var updateable []*discordgo.ApplicationCommand
 	for _, cmd := range b.Commands {
-		if command, ok := cmd.(ApplicationCommandable); ok {
+		if command, ok := cmd.(ApplicationCommandInteractionHandler); ok {
 			spec := command.ApplicationCommand()
 			log.Debug().Str("command", spec.Name).Msg("updating command")
 			updateable = append(updateable, command.ApplicationCommand())
 		}
 	}
 
-	if _, err := b.Session.ApplicationCommandBulkOverwrite(b.AppID, "", updateable, WithRequestOptions(ctx)...); err != nil {
+	if _, err := b.Session.ApplicationCommandBulkOverwrite(b.AppID, "", updateable, RequestOptions(ctx)); err != nil {
 		return fmt.Errorf("failed to bulk update commands: %s", err)
 	}
 
@@ -144,7 +144,7 @@ func (b *Bot) GetGuild(ctx context.Context, id string) (*discordgo.Guild, error)
 		return guild, nil
 	}
 
-	guild, err := b.Session.Guild(id, WithRequestOptions(ctx)...)
+	guild, err := b.Session.Guild(id, RequestOptions(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get guild %s: %s", id, err)
 	}
@@ -233,7 +233,7 @@ func (b *Bot) LeaveUserVoiceChannel(userID string) error {
 }
 
 func (b *Bot) SendMessageReaction(ctx context.Context, message *discordgo.Message, emoji, emojiFallback string) error {
-	if err := b.Session.MessageReactionAdd(message.ChannelID, message.ID, b.GetEmojiForReaction(emoji, emojiFallback), WithRequestOptions(ctx)...); err != nil {
+	if err := b.Session.MessageReactionAdd(message.ChannelID, message.ID, b.GetEmojiForReaction(emoji, emojiFallback), RequestOptions(ctx)); err != nil {
 		return fmt.Errorf("failed to react to message %s: %s", message.ID, err)
 	}
 
@@ -241,7 +241,7 @@ func (b *Bot) SendMessageReaction(ctx context.Context, message *discordgo.Messag
 }
 
 func (b *Bot) SendMessageReply(ctx context.Context, message *discordgo.Message, content string) error {
-	if _, err := b.Session.ChannelMessageSendReply(message.ChannelID, content, message.Reference(), WithRequestOptions(ctx)...); err != nil {
+	if _, err := b.Session.ChannelMessageSendReply(message.ChannelID, content, message.Reference(), RequestOptions(ctx)); err != nil {
 		return fmt.Errorf("failed to respond to message %s: %s", message.ID, err)
 	}
 
@@ -249,11 +249,19 @@ func (b *Bot) SendMessageReply(ctx context.Context, message *discordgo.Message, 
 }
 
 func (b *Bot) SendInteractionReply(ctx context.Context, interaction *discordgo.Interaction, response *discordgo.InteractionResponse) error {
-	if err := b.Session.InteractionRespond(interaction, response, WithRequestOptions(ctx)...); err != nil {
+	if err := b.Session.InteractionRespond(interaction, response, RequestOptions(ctx)); err != nil {
 		return fmt.Errorf("failed to respond to interaction %s: %s", interaction.ID, err)
 	}
 
 	return nil
+}
+
+func (b *Bot) SendInteractionDeferral(ctx context.Context, interaction *discordgo.Interaction) error {
+	response := discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	}
+
+	return b.SendInteractionReply(ctx, interaction, &response)
 }
 
 func (b *Bot) SendInteractionMessageReply(ctx context.Context, interaction *discordgo.Interaction, content string) error {
@@ -262,8 +270,12 @@ func (b *Bot) SendInteractionMessageReply(ctx context.Context, interaction *disc
 		Data: &discordgo.InteractionResponseData{Content: content},
 	}
 
-	if err := b.Session.InteractionRespond(interaction, &response, WithRequestOptions(ctx)...); err != nil {
-		return fmt.Errorf("failed to respond to interaction %s: %s", interaction.ID, err)
+	return b.SendInteractionReply(ctx, interaction, &response)
+}
+
+func (b *Bot) SendInteractionEdit(ctx context.Context, interaction *discordgo.Interaction, edit *discordgo.WebhookEdit) error {
+	if _, err := b.Session.InteractionResponseEdit(interaction, edit, RequestOptions(ctx)); err != nil {
+		return fmt.Errorf("failed to edit interaction %s: %s", interaction.ID, err)
 	}
 
 	return nil

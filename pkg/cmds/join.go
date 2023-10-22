@@ -9,8 +9,7 @@ import (
 )
 
 var (
-	// _ discord.MessageCommandable = (*Join)(nil)
-	_ discord.ApplicationCommandable = (*Join)(nil)
+	_ discord.ApplicationCommandInteractionHandler = (*Join)(nil)
 )
 
 type Join struct{}

@@ -2,7 +2,6 @@ package cmds
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/bwmarrin/discordgo"
@@ -10,8 +9,7 @@ import (
 )
 
 var (
-	// _ discord.MessageCommandable     = (*Shutdown)(nil)
-	_ discord.ApplicationCommandable = (*Shutdown)(nil)
+	_ discord.ApplicationCommandInteractionHandler = (*Shutdown)(nil)
 )
 
 type Shutdown struct{ Shutdown func() }
@@ -35,12 +33,7 @@ func (cmd Shutdown) OnApplicationCommand(ctx context.Context, bot *discord.Bot, 
 	defer cmd.Shutdown()
 
 	emoji := bot.GetEmojiForMessage("FeelsCarlosMan", "😶‍🌫️")
-	response := discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Content: emoji},
-	}
-
-	if err := bot.Session.InteractionRespond(event.Interaction, &response, discord.WithRequestOptions(ctx)...); err != nil {
-		log.Warn().Err(fmt.Errorf("failed to respond to interaction: %s", err)).Send()
+	if err := bot.SendInteractionMessageReply(ctx, event.Interaction, emoji); err != nil {
+		log.Warn().Err(err).Send()
 	}
 }

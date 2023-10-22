@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -40,44 +41,92 @@ func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.I
 		Bool("user_is_bot", user.Bot).
 		Send()
 
-	switch data := (event.Data).(type) {
-	case discordgo.MessageComponentInteractionData:
-		log.Debug().
-			Any("interaction_data_message_component", data).
-			Msg("unsupported interaction type")
+	switch event.Type {
+	case discordgo.InteractionApplicationCommand:
+		b.onInteractionApplicationCommand(event, log)
 		return
 
-	case discordgo.ModalSubmitInteractionData:
-		log.Debug().
-			Any("interaction_data_modal_submit", data).
-			Msg("unsupported interaction type")
+	case discordgo.InteractionMessageComponent:
+		b.onInteractionMessageComponent(event, log)
 		return
 
-	case discordgo.ApplicationCommandInteractionData:
-		log = log.With().
-			Any("interaction_data_application_command", data).
-			Str("command_name", data.Name).
-			Any("command_options", data.Options).
-			Logger()
-
-		cmd, ok := b.Commands[data.Name]
-		if !ok {
-			log.Debug().
-				Err(fmt.Errorf("invalid command: %s", ErrCommandNotImplemented)).
-				Send()
-			return
-		}
-
-		appCmd, ok := cmd.(ApplicationCommandable)
-		if !ok {
-			log.Error().
-				Err(fmt.Errorf("invalid command: %s", ErrInvalidApplicationCommand)).
-				Send()
-			return
-		}
-
-		go appCmd.OnApplicationCommand(context.Background(), b, event, &data)
+	default:
+		log.Warn().
+			Any("data", event.Data).
+			Msg("unhandled interaction type")
+		return
 	}
+}
+
+func (b *Bot) onInteractionApplicationCommand(event *discordgo.InteractionCreate, log zerolog.Logger) {
+	data := event.ApplicationCommandData()
+	log = log.With().
+		Any("application_command_data", data).
+		Str("command_name", data.Name).
+		Any("command_options", data.Options).
+		Logger()
+
+	cmd, ok := b.Commands[data.Name]
+	if !ok {
+		log.Debug().
+			Err(fmt.Errorf("invalid command: %s", ErrCommandNotImplemented)).
+			Send()
+		return
+	}
+
+	handler, ok := cmd.(ApplicationCommandInteractionHandler)
+	if !ok {
+		log.Error().
+			Err(fmt.Errorf("invalid command: %s", ErrNotApplicationCommandInteractionHandler)).
+			Send()
+		return
+	}
+
+	log.Info().Send()
+	go handler.OnApplicationCommand(context.Background(), b, event, &data)
+}
+
+func (b *Bot) onInteractionMessageComponent(event *discordgo.InteractionCreate, log zerolog.Logger) {
+	data := event.MessageComponentData()
+	log = log.With().
+		Any("message_component_data", data).
+		Str("custom_id", data.CustomID).
+		Any("values", data.Values).
+		Logger()
+
+	idParts := strings.Split(data.CustomID, ":")
+	if len(idParts) != 2 {
+		log.Debug().
+			Err(fmt.Errorf("invalid custom id format")).
+			Send()
+		return
+	}
+
+	commandName := idParts[0]
+	interactionID := idParts[1]
+	log = log.With().
+		Str("command_name", commandName).
+		Str("interaction_id", interactionID).
+		Logger()
+
+	cmd, ok := b.Commands[commandName]
+	if !ok {
+		log.Debug().
+			Err(fmt.Errorf("invalid command: %s", ErrCommandNotImplemented)).
+			Send()
+		return
+	}
+
+	handler, ok := cmd.(MessageComponentInteractionHandler)
+	if !ok {
+		log.Error().
+			Err(fmt.Errorf("invalid command: %s", ErrNotMessageComponentInteractionHandler)).
+			Send()
+		return
+	}
+
+	log.Info().Send()
+	go handler.OnMessageComponent(context.Background(), b, event, &data)
 }
 
 func (b *Bot) onMessageCreate(session *discordgo.Session, event *discordgo.MessageCreate) {
@@ -116,15 +165,15 @@ func (b *Bot) onMessageCreate(session *discordgo.Session, event *discordgo.Messa
 		return
 	}
 
-	msgCmd, ok := cmd.(MessageCommandable)
+	command, ok := cmd.(MessageHandler)
 	if !ok {
 		log.Debug().
-			Err(fmt.Errorf("invalid command: %s", ErrInvalidMessageCommand)).
+			Err(fmt.Errorf("invalid command: %s", ErrNotMessageHandler)).
 			Send()
 		return
 	}
 
-	go msgCmd.OnMessageCommand(context.Background(), b, event, args)
+	go command.OnMessage(context.Background(), b, event, args)
 }
 
 func (b *Bot) onMessageReactionAdd(session *discordgo.Session, event *discordgo.MessageReactionAdd) {
