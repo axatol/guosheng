@@ -16,7 +16,7 @@ import (
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/axatol/guosheng/pkg/server"
 	"github.com/axatol/guosheng/pkg/server/handlers"
-	"github.com/axatol/guosheng/yt"
+	"github.com/axatol/guosheng/pkg/yt"
 	"github.com/rs/zerolog/log"
 )
 

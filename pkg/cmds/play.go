@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/axatol/guosheng/pkg/discord"
-	"github.com/axatol/guosheng/yt"
+	"github.com/axatol/guosheng/pkg/yt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )

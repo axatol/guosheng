@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/axatol/guosheng/pkg/discord"
-	"github.com/axatol/guosheng/yt"
+	"github.com/axatol/guosheng/pkg/yt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )
@@ -126,7 +126,7 @@ func (cmd Search) OnMessageComponent(ctx context.Context, bot *discord.Bot, even
 
 	embeds := make([]*discordgo.MessageEmbed, len(results))
 	for i, result := range results {
-		embeds[i] = result.Embed()
+		embeds[i] = result.AsMessageEmbed()
 	}
 
 	edit := discordgo.WebhookEdit{

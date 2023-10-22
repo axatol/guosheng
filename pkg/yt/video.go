@@ -41,7 +41,7 @@ func (v *Video) Duration() *util.ISODuration {
 	return duration
 }
 
-func (v *Video) Embed() *discordgo.MessageEmbed {
+func (v *Video) AsMessageEmbed() *discordgo.MessageEmbed {
 	uploader := util.MDLink(v.ChannelTitle, v.ChannelURL())
 	duration := v.Duration().String()
 	if duration == "" {
