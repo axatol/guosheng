@@ -103,6 +103,30 @@ func (b *Bot) Close() error {
 	return b.Session.Close()
 }
 
+func (b *Bot) Ready(ctx context.Context) bool {
+	return b.Session.DataReady
+}
+
+func (b *Bot) Health(ctx context.Context) (any, error) {
+	metadata := map[string]any{
+		"data_websocket_ready": b.Session.DataReady,
+		"heartbeat_latency_ms": b.Session.HeartbeatLatency().Milliseconds(),
+	}
+
+	voiceConnections := map[string]bool{}
+	for _, vc := range b.Session.VoiceConnections {
+		voiceConnections[vc.GuildID+":"+vc.ChannelID] = vc.Ready
+	}
+
+	metadata["voice_connections"] = voiceConnections
+
+	if !b.Session.DataReady {
+		return metadata, fmt.Errorf("data websocket not ready")
+	}
+
+	return metadata, nil
+}
+
 func (b *Bot) RegisterInteractions(ctx context.Context) error {
 	existing, err := b.Session.ApplicationCommands(b.AppID, "", RequestOptions(ctx))
 	if err != nil {

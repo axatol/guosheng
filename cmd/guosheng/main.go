@@ -33,11 +33,10 @@ func main() {
 	}
 
 	ctx := context.Background()
-	ctx = contextutil.WithInterrupt(ctx)
-	ctx, cancel := context.WithCancelCause(ctx)
+	ctx, cancel := contextutil.WithInterrupt(ctx)
 
 	bot := runBot(ctx, cancel)
-	server := runServer(ctx, cancel)
+	server := runServer(ctx, bot, cancel)
 
 	<-ctx.Done()
 	if err := context.Cause(ctx); err != nil && err != context.Canceled {
@@ -89,10 +88,10 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 	return bot
 }
 
-func runServer(ctx context.Context, cancel context.CancelCauseFunc) *http.Server {
+func runServer(ctx context.Context, bot *discord.Bot, cancel context.CancelCauseFunc) *http.Server {
 	router := server.NewRouter(config.ServerAddress)
-	router.Get("/api/ping", handlers.Ping)
-	router.Get("/api/health", handlers.Health)
+	router.Get("/api/ping", handlers.Ping(bot))
+	router.Get("/api/health", handlers.Health(bot))
 
 	server := http.Server{Addr: config.ServerAddress, Handler: router}
 	go func() {
