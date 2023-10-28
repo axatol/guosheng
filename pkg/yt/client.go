@@ -3,6 +3,7 @@ package yt
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"google.golang.org/api/option"
@@ -29,4 +30,13 @@ func NormaliseURL(raw string) string {
 	raw = strings.Replace(raw, "/watch#", "/watch?", 1)
 	raw = strings.Replace(raw, "/youtube.com/shorts/", "youtube.com/watch?v=", 1)
 	return raw
+}
+
+func GetVideoIDFromURL(input string) string {
+	url, err := url.Parse(input)
+	if err != nil {
+		return ""
+	}
+
+	return url.Query().Get("q")
 }
