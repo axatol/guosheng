@@ -17,6 +17,7 @@ import (
 	"github.com/axatol/guosheng/pkg/server"
 	"github.com/axatol/guosheng/pkg/server/handlers"
 	"github.com/axatol/guosheng/pkg/yt"
+	"github.com/axatol/guosheng/pkg/ytdlp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -64,6 +65,18 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 		log.Fatal().Err(err).Send()
 	}
 
+	ytdlp := ytdlp.Executor{
+		YTDLPExecutable:  config.YTDLPExecutable,
+		FFMPEGExecutable: config.FFMPEGExecutable,
+		DCAExecutable:    config.DCAExecutable,
+		Concurrency:      config.YTDLPConcurrency,
+		CacheDirectory:   config.YTDLPCacheDirectory,
+	}
+
+	if err := ytdlp.Start(ctx); err != nil {
+		log.Fatal().Err(err).Send()
+	}
+
 	shutdown := func() {
 		cancel(fmt.Errorf("received shutdown command"))
 	}
@@ -72,7 +85,7 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 	bot.RegisterCommand(ctx, cmds.Beep{})
 	bot.RegisterCommand(ctx, cmds.Join{})
 	bot.RegisterCommand(ctx, cmds.Leave{})
-	bot.RegisterCommand(ctx, cmds.Play{YouTube: yt})
+	bot.RegisterCommand(ctx, cmds.Play{YouTube: yt, YTDLP: &ytdlp})
 	bot.RegisterCommand(ctx, cmds.Search{YouTube: yt})
 	// should be last
 	bot.RegisterCommand(ctx, cmds.Help{Commands: bot.Commands})

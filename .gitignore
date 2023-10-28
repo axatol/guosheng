@@ -4,3 +4,10 @@
 # compiled outputs
 bin
 tmp
+
+# misc
+.DS_Store
+
+# data files
+*.dca
+*.opus
