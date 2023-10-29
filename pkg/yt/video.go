@@ -20,6 +20,17 @@ type Video struct {
 	DurationRaw  string `json:"duration"`
 }
 
+func (v *Video) ToMap() map[string]string {
+	return map[string]string{
+		"id":            v.ID,
+		"etag":          v.ETag,
+		"title":         v.Title,
+		"channel_id":    v.ChannelID,
+		"channel_title": v.ChannelTitle,
+		"duration":      v.DurationRaw,
+	}
+}
+
 func (v *Video) VideoURL() string {
 	return fmt.Sprintf("https://youtube.com/watch?v=%s", v.ID)
 }

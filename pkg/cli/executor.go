@@ -1,4 +1,4 @@
-package ytdlp
+package cli
 
 import (
 	"context"
@@ -18,7 +18,7 @@ type Executor struct {
 	queue            *util.Queue
 }
 
-func (e *Executor) Start(ctx context.Context) error {
+func (e *Executor) Listen(ctx context.Context) error {
 	if e.YTDLPExecutable == "" {
 		e.YTDLPExecutable = "yt-dlp"
 	}

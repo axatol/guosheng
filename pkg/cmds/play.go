@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/axatol/guosheng/pkg/cache"
+	"github.com/axatol/guosheng/pkg/cli"
 	"github.com/axatol/guosheng/pkg/discord"
+	"github.com/axatol/guosheng/pkg/util"
 	"github.com/axatol/guosheng/pkg/yt"
-	"github.com/axatol/guosheng/pkg/ytdlp"
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )
@@ -19,8 +21,9 @@ var (
 )
 
 type Play struct {
-	YouTube *yt.Client
-	YTDLP   *ytdlp.Executor
+	YouTube     *yt.Client
+	CLI         *cli.Executor
+	ObjectStore cache.ObjectStore
 }
 
 func (cmd Play) Name() string {
@@ -77,7 +80,7 @@ func (cmd Play) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 		return
 	}
 
-	uploader := fmt.Sprintf("[%s](%s)", item.ChannelTitle, item.ChannelURL())
+	uploader := util.MDLink(item.ChannelTitle, item.ChannelURL())
 	duration := item.Duration().String()
 	if duration == "" {
 		duration = "?"
@@ -112,14 +115,34 @@ func (cmd Play) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 			return
 		}
 
-		raw, err := cmd.YTDLP.Download(item.ID)
+		cacheKey := fmt.Sprintf("cache/%s", item.ID)
+		if _, err := cmd.ObjectStore.Stat(ctx, cacheKey); err != nil {
+			if err != cache.ErrObjectNotFound {
+				log.Error().Err(err).Send()
+				return
+			}
+
+			raw, err := cmd.CLI.Download(item.ID)
+			if err != nil {
+				log.Error().Err(err).Send()
+				return
+			}
+
+			if _, err := cmd.ObjectStore.Put(ctx, cacheKey, raw, item.ToMap()); err != nil {
+				log.Error().Err(err).Send()
+				return
+			}
+		}
+
+		raw, err := cmd.ObjectStore.Get(ctx, cacheKey)
 		if err != nil {
 			log.Error().Err(err).Send()
 			return
 		}
 
+		raw, err = cmd.CLI.Encode(item.ID, raw)
 		if err != nil {
-			log.Error().Err(fmt.Errorf("failed to get %s: %s", videoID, err))
+			log.Error().Err(err).Send()
 			return
 		}
 
@@ -155,9 +178,6 @@ func (cmd Play) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 			vc.OpusSend <- frame
 		}
 
-		// TODO
-		// upload to bucket
-		// delete file
-		// enqueue
+		// TODO enqueue
 	}()
 }

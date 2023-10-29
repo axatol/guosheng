@@ -1,18 +1,17 @@
-package ytdlp
+package cli
 
 import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 
-	"github.com/axatol/go-utils/executil"
+	"github.com/rs/zerolog/log"
 )
 
 func (e *Executor) Download(id string) (buffer []byte, err error) {
 	job := func(ctx context.Context) (err error) {
-		ctx, cancel := context.WithCancelCause(ctx)
-
-		ytdlpCmd := exec.CommandContext(ctx, e.YTDLPExecutable,
+		cmd := exec.CommandContext(ctx, e.YTDLPExecutable,
 			fmt.Sprintf("https://youtube.com/watch?v=%s", id),
 			"--cache-dir", e.CacheDirectory,
 			"--abort-on-error",
@@ -30,25 +29,12 @@ func (e *Executor) Download(id string) (buffer []byte, err error) {
 			"--output", "-",
 		)
 
-		ffmpegCmd := exec.CommandContext(ctx, e.FFMPEGExecutable,
-			"-i", "pipe:0",
-			"-f", "s16le",
-			"-ar", "48000",
-			"-ac", "2",
-			"pipe:1",
-		)
+		if buffer, err = cmd.Output(); err != nil {
+			if err, ok := err.(*exec.ExitError); ok && len(err.Stderr) > 0 {
+				log.Warn().Bytes("stderr", err.Stderr).Msg("stderr was not empty")
+			}
 
-		dcaCmd := exec.CommandContext(ctx, e.DCAExecutable,
-			"-aa", "audio",
-			"-ac", "2",
-			"-ar", "48000",
-			"-as", "960",
-		)
-
-		buffer, err = executil.Pipeline(ytdlpCmd, ffmpegCmd, dcaCmd)
-		if err != nil {
-			cancel(fmt.Errorf("pipeline cancelled due to error: %s", err))
-			return fmt.Errorf("failed to execute pipeline: %s", err)
+			return fmt.Errorf("failed to execute '%s %s': %s", e.YTDLPExecutable, strings.Join(cmd.Args, " "), err)
 		}
 
 		return nil
