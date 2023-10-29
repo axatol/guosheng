@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/axatol/go-utils/contextutil"
+	"github.com/axatol/guosheng/pkg/cache"
+	"github.com/axatol/guosheng/pkg/cli"
 	"github.com/axatol/guosheng/pkg/cmds"
 	"github.com/axatol/guosheng/pkg/config"
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/axatol/guosheng/pkg/server"
 	"github.com/axatol/guosheng/pkg/server/handlers"
 	"github.com/axatol/guosheng/pkg/yt"
-	"github.com/axatol/guosheng/pkg/ytdlp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -36,22 +37,35 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := contextutil.WithInterrupt(ctx)
 
-	bot := runBot(ctx, cancel)
-	server := runServer(ctx, bot, cancel)
-
-	<-ctx.Done()
-	if err := context.Cause(ctx); err != nil && err != context.Canceled {
-		log.Error().Err(fmt.Errorf("context canceled: %s", err)).Send()
-		exitCode = 1
-	}
-
-	cleanup(bot, server)
-}
-
-func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 	yt, err := yt.New(ctx, config.YouTubeAPIKey)
 	if err != nil {
 		log.Fatal().Err(err).Send()
+	}
+
+	cli := cli.Executor{
+		YTDLPExecutable:  config.YTDLPExecutable,
+		FFMPEGExecutable: config.FFMPEGExecutable,
+		DCAExecutable:    config.DCAExecutable,
+		Concurrency:      config.YTDLPConcurrency,
+		CacheDirectory:   config.YTDLPCacheDirectory,
+	}
+
+	if err := cli.Listen(ctx); err != nil {
+		log.Fatal().Err(err).Send()
+	}
+
+	objectStoreOpts := cache.ObjectStoreOptions{}
+	objectStoreOpts.SetFilesystem(config.YTDLPCacheDirectory)
+	if config.MinioEnabled {
+		objectStoreOpts.SetMinio(config.MinioEndpoint, config.MinioBucket, config.MinioAccessKeyID, config.MinioSecretAccessKey)
+	}
+	objectStore, err := cache.NewObjectStore(objectStoreOpts)
+	if err != nil {
+		log.Fatal().Err(err).Send()
+	}
+
+	shutdown := func() {
+		cancel(fmt.Errorf("received shutdown command"))
 	}
 
 	botOpts := discord.BotOptions{
@@ -65,27 +79,11 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 		log.Fatal().Err(err).Send()
 	}
 
-	ytdlp := ytdlp.Executor{
-		YTDLPExecutable:  config.YTDLPExecutable,
-		FFMPEGExecutable: config.FFMPEGExecutable,
-		DCAExecutable:    config.DCAExecutable,
-		Concurrency:      config.YTDLPConcurrency,
-		CacheDirectory:   config.YTDLPCacheDirectory,
-	}
-
-	if err := ytdlp.Start(ctx); err != nil {
-		log.Fatal().Err(err).Send()
-	}
-
-	shutdown := func() {
-		cancel(fmt.Errorf("received shutdown command"))
-	}
-
 	bot.RegisterCommand(ctx, cmds.Shutdown{Shutdown: shutdown})
 	bot.RegisterCommand(ctx, cmds.Beep{})
 	bot.RegisterCommand(ctx, cmds.Join{})
 	bot.RegisterCommand(ctx, cmds.Leave{})
-	bot.RegisterCommand(ctx, cmds.Play{YouTube: yt, YTDLP: &ytdlp})
+	bot.RegisterCommand(ctx, cmds.Play{YouTube: yt, CLI: &cli, ObjectStore: objectStore})
 	bot.RegisterCommand(ctx, cmds.Search{YouTube: yt})
 	// should be last
 	bot.RegisterCommand(ctx, cmds.Help{Commands: bot.Commands})
@@ -98,10 +96,6 @@ func runBot(ctx context.Context, cancel context.CancelCauseFunc) *discord.Bot {
 		log.Fatal().Err(err).Send()
 	}
 
-	return bot
-}
-
-func runServer(ctx context.Context, bot *discord.Bot, cancel context.CancelCauseFunc) *http.Server {
 	router := server.NewRouter(config.ServerAddress)
 	router.Get("/api/ping", handlers.Ping(bot))
 	router.Get("/api/health", handlers.Health(bot))
@@ -113,7 +107,13 @@ func runServer(ctx context.Context, bot *discord.Bot, cancel context.CancelCause
 		}
 	}()
 
-	return &server
+	<-ctx.Done()
+	if err := context.Cause(ctx); err != nil && err != context.Canceled {
+		log.Error().Err(fmt.Errorf("context canceled: %s", err)).Send()
+		exitCode = 1
+	}
+
+	cleanup(bot, &server)
 }
 
 func cleanup(bot *discord.Bot, server *http.Server) {
