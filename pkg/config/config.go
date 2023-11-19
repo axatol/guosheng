@@ -111,10 +111,17 @@ func Configure() {
 
 	zerolog.SetGlobalLevel(zerologLevel)
 	if logFormat.String() == "text" {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+		log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout})
 	}
 
-	log.Debug().
+	log.Logger = log.Logger.With().
+		Timestamp().
+		Stack().
+		Caller().
+		Logger()
+
+	Version().Debug().
+		Int("pid", os.Getpid()).
 		Str("log_level", logLevel.String()).
 		Str("log_format", logFormat.String()).
 		Str("config_filename", configFilename).

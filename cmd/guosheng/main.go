@@ -11,14 +11,12 @@ import (
 	"time"
 
 	"github.com/axatol/go-utils/contextutil"
-	"github.com/axatol/guosheng/pkg/cache"
-	"github.com/axatol/guosheng/pkg/cli"
+	"github.com/axatol/guosheng/pkg/app"
 	"github.com/axatol/guosheng/pkg/cmds"
 	"github.com/axatol/guosheng/pkg/config"
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/axatol/guosheng/pkg/server"
 	"github.com/axatol/guosheng/pkg/server/handlers"
-	"github.com/axatol/guosheng/pkg/yt"
 	"github.com/rs/zerolog/log"
 )
 
@@ -37,29 +35,7 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := contextutil.WithInterrupt(ctx)
 
-	yt, err := yt.New(ctx, config.YouTubeAPIKey)
-	if err != nil {
-		log.Fatal().Err(err).Send()
-	}
-
-	cli := cli.Executor{
-		YTDLPExecutable:  config.YTDLPExecutable,
-		FFMPEGExecutable: config.FFMPEGExecutable,
-		DCAExecutable:    config.DCAExecutable,
-		Concurrency:      config.YTDLPConcurrency,
-		CacheDirectory:   config.YTDLPCacheDirectory,
-	}
-
-	if err := cli.Listen(ctx); err != nil {
-		log.Fatal().Err(err).Send()
-	}
-
-	objectStoreOpts := cache.ObjectStoreOptions{}
-	objectStoreOpts.SetFilesystem(config.YTDLPCacheDirectory)
-	if config.MinioEnabled {
-		objectStoreOpts.SetMinio(config.MinioEndpoint, config.MinioBucket, config.MinioAccessKeyID, config.MinioSecretAccessKey)
-	}
-	objectStore, err := cache.NewObjectStore(objectStoreOpts)
+	app, err := app.New(ctx)
 	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
@@ -83,8 +59,8 @@ func main() {
 	bot.RegisterCommand(ctx, cmds.Beep{})
 	bot.RegisterCommand(ctx, cmds.Join{})
 	bot.RegisterCommand(ctx, cmds.Leave{})
-	bot.RegisterCommand(ctx, cmds.Play{YouTube: yt, CLI: &cli, ObjectStore: objectStore})
-	bot.RegisterCommand(ctx, cmds.Search{YouTube: yt})
+	bot.RegisterCommand(ctx, cmds.Play{App: app})
+	bot.RegisterCommand(ctx, cmds.Search{App: app})
 	// should be last
 	bot.RegisterCommand(ctx, cmds.Help{Commands: bot.Commands})
 

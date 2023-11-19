@@ -1,14 +1,9 @@
 package cmds
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"fmt"
-	"io"
 
-	"github.com/axatol/guosheng/pkg/cache"
-	"github.com/axatol/guosheng/pkg/cli"
+	"github.com/axatol/guosheng/pkg/app"
 	"github.com/axatol/guosheng/pkg/discord"
 	"github.com/axatol/guosheng/pkg/util"
 	"github.com/axatol/guosheng/pkg/yt"
@@ -20,11 +15,7 @@ var (
 	_ discord.ApplicationCommandInteractionHandler = (*Play)(nil)
 )
 
-type Play struct {
-	YouTube     *yt.Client
-	CLI         *cli.Executor
-	ObjectStore cache.ObjectStore
-}
+type Play struct{ App *app.App }
 
 func (cmd Play) Name() string {
 	return "play"
@@ -74,7 +65,7 @@ func (cmd Play) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 		log.Warn().Err(err).Send()
 	}
 
-	item, err := cmd.YouTube.GetVideoByID(ctx, videoID)
+	item, err := cmd.App.YouTube.GetVideoByID(ctx, videoID)
 	if err != nil {
 		log.Warn().Err(err).Send()
 		return
@@ -115,69 +106,12 @@ func (cmd Play) OnApplicationCommand(ctx context.Context, bot *discord.Bot, even
 			return
 		}
 
-		cacheKey := fmt.Sprintf("cache/%s", item.ID)
-		if _, err := cmd.ObjectStore.Stat(ctx, cacheKey); err != nil {
-			if err != cache.ErrObjectNotFound {
-				log.Error().Err(err).Send()
-				return
-			}
-
-			raw, err := cmd.CLI.Download(item.ID)
-			if err != nil {
-				log.Error().Err(err).Send()
-				return
-			}
-
-			if _, err := cmd.ObjectStore.Put(ctx, cacheKey, raw, item.ToMap()); err != nil {
-				log.Error().Err(err).Send()
-				return
-			}
-		}
-
-		raw, err := cmd.ObjectStore.Get(ctx, cacheKey)
+		song, err := cmd.App.GetSong(ctx, item)
 		if err != nil {
 			log.Error().Err(err).Send()
 			return
 		}
 
-		raw, err = cmd.CLI.Encode(item.ID, raw)
-		if err != nil {
-			log.Error().Err(err).Send()
-			return
-		}
-
-		if err := vc.Speaking(true); err != nil {
-			log.Error().Err(fmt.Errorf("failed to start speaking: %s", err)).Send()
-			return
-		}
-
-		defer func() {
-			if err := vc.Speaking(false); err != nil {
-				log.Error().Err(fmt.Errorf("failed to stop speaking: %s", err)).Send()
-			}
-		}()
-
-		buffer := bytes.NewBuffer(raw)
-
-		for {
-			var frameLength int16
-			if err := binary.Read(buffer, binary.LittleEndian, &frameLength); err != nil {
-				log.Error().Err(fmt.Errorf("failed to read frame length: %s", err)).Send()
-				return
-			}
-
-			frame := make([]byte, frameLength)
-			if err := binary.Read(buffer, binary.LittleEndian, &frame); err != nil {
-				if err != io.EOF && err != io.ErrUnexpectedEOF {
-					log.Error().Err(fmt.Errorf("failed to read frame: %s", err)).Send()
-				}
-
-				return
-			}
-
-			vc.OpusSend <- frame
-		}
-
-		// TODO enqueue
+		cmd.App.PlaySong(ctx, vc, song)
 	}()
 }

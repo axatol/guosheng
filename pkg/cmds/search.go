@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/axatol/guosheng/pkg/app"
 	"github.com/axatol/guosheng/pkg/discord"
-	"github.com/axatol/guosheng/pkg/yt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )
@@ -16,7 +16,7 @@ var (
 	_ discord.MessageComponentInteractionHandler   = (*Search)(nil)
 )
 
-type Search struct{ YouTube *yt.Client }
+type Search struct{ App *app.App }
 
 func (cmd Search) Name() string {
 	return "search"
@@ -42,7 +42,7 @@ func (cmd Search) ApplicationCommand() *discordgo.ApplicationCommand {
 func (cmd Search) OnApplicationCommand(ctx context.Context, bot *discord.Bot, event *discordgo.InteractionCreate, data *discordgo.ApplicationCommandInteractionData) {
 	opts := resolveOptions(data.Options)
 	query := opts["query"].(string)
-	searchResults, err := cmd.YouTube.SearchVideo(ctx, query, 5)
+	searchResults, err := cmd.App.YouTube.SearchVideo(ctx, query, 5)
 	log.Trace().Str("query", query).Any("search_results", searchResults).Send()
 	if err != nil {
 		response := discordgo.InteractionResponse{
@@ -119,7 +119,7 @@ func (cmd Search) OnMessageComponent(ctx context.Context, bot *discord.Bot, even
 		log.Warn().Err(err).Send()
 	}
 
-	results, err := cmd.YouTube.GetVideosByIDs(ctx, videoIDs...)
+	results, err := cmd.App.YouTube.GetVideosByIDs(ctx, videoIDs...)
 	if err != nil {
 		log.Warn().Err(err).Send()
 	}
